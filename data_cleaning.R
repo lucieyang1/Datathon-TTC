@@ -201,6 +201,39 @@ ttc_streetcar_delay <- ttc_streetcar_delay %>%
 ttc_subway_delay <- ttc_subway_delay %>%
   filter(!is.na(date) & !is.na(time) & !is.na(station))
 
+
+
+### Adding weather
+library(tidyverse)
+
+
+#### weather data
+toronto_weather_all_data <- read_csv("data/raw/en_climate_daily_ON_6158355_2024_P1D.csv")
+
+
+toronto_weather <- toronto_weather_all_data |>
+  select(`Date/Time`, Year, Month, Day, `Max Temp (°C)`, `Min Temp (°C)`, `Total Precip (mm)`, `Snow on Grnd (cm)`) |>
+  mutate("date" = `Date/Time`) |>
+  select(-`Date/Time`)
+
+
+
+#### merging ttc data with weather data
+ttc_bus_delay <- merge(ttc_bus_delay, toronto_weather, by = "date")
+
+
+ttc_streetcar_delay <- merge(ttc_streetcar_delay, toronto_weather, by = "date")
+
+
+ttc_subway_delay <- merge(ttc_subway_delay, toronto_weather, by = "date")
+
+
+
+
+
+
+
+
 #### Save data ####
 write_csv(ttc_bus_delay, "cleaned_data/ttc_bus_delay.csv")
 write_csv(ttc_streetcar_delay, "cleaned_data/ttc_streetcar_delay.csv")
