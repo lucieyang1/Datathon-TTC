@@ -1,0 +1,271 @@
+---
+title: "Mapping TTC Delays: Testing Sandbox"
+author: "Lucie Yang"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+link-citations: yes
+output: 
+  html_document: 
+    fig_width: 6
+    fig_height: 6
+    theme: united
+    highlight: tango
+---
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(eval = F, include  = T)
+```
+
+# Testing how to make maps for fun
+```{r}
+library(sf)
+my_sf <- read_sf("TTC_SUBWAY_LINES_WGS84.shp")
+```
+
+```{r}
+st_geometry(my_sf)
+```
+```{r}
+my_sf <- st_transform(my_sf, crs = 4326)
+```
+
+```{r}
+my_sf <- st_make_valid(my_sf)
+```
+
+```{r}
+plot(st_geometry(my_sf))
+```
+```{r}
+par(mar = c(0, 0, 0, 0))
+plot(st_geometry(my_sf), col = "#f2f2f2", bg = "skyblue", lwd = 0.25, border = 0)
+```
+
+```{r}
+library(ggplot2)
+ggplot(my_sf) +
+  geom_sf(fill = "#69b3a2", color = "red") +
+  theme_void()
+```
+
+```{r}
+my_sf <- st_transform(my_sf, 4326)
+
+```
+
+```{r}
+library(leaflet)
+leaflet(my_sf) %>%
+  addProviderTiles(providers$CartoDB.DarkMatter) %>%  # Light-themed basemap
+  addPolylines(color = "lightblue", weight = 3, opacity = 0.8)
+```
+
+# Data Wrangling
+```{r, warning = FALSE}
+library(readxl)
+library(readr)
+download.file("https://ckan0.cf.opendata.inter.prod-toronto.ca/dataset/996cfe8d-fb35-40ce-b569-698d51fc683b/resource/2ee1a65c-da06-4ad1-bdfb-b1a57701e46a/download/ttc-subway-delay-data-2024.xlsx",
+              "data/raw/subway_delay_2024.xlsx", mode = "wb")
+subway_delay_2024 <- read_excel("../ttc-subway-delay-data-2024.xlsx")
+```
+
+```{r}
+dim(subway_delay_2024)
+```
+
+For simplicity, only keep the delays that are at one station (not in between or multiple stations)
+```{r}
+library(stringr)
+subway_subset <- subway_delay_2024 %>%
+  filter(str_detect(Station, "STATION")) 
+```
+
+```{r}
+dim(subway_subset) # nice! most of them are kept
+```
+
+Clean the text for the stations so I can join. 
+```{r}
+subway_subset$Station <- str_remove(subway_subset$Station, " STATION$") # remove STATION
+subway_subset$Station <- str_remove(subway_subset$Station, " BD$") # remove BD
+subway_subset$Station <- str_remove(subway_subset$Station, " YUS$") # remove YUS
+subway_subset$Station <- str_to_title(subway_subset$Station) # change to title case
+```
+
+```{r}
+sort(table(subway_subset$Station), decreasing = TRUE) # weird names that will get messed up
+```
+There's some stations here that will definitely get lost in the join with the ESRI data -- some stations have been renamed/merged, some formatting/abbreviation differences, and some are misspellings. For example, Spadina YUS Station, Bloor Station, St Geoge
+
+Manually rename these subway stations to match the ESRI data
+```{r}
+subway_subset <- subway_subset %>%
+  # mutate(Station = ifelse(Station == "Bloor", "Bloor-Yonge", Station)) %>% 
+  # mutate(Station = ifelse(Station == "Yonge", "Bloor-Yonge", Station)) %>% 
+  mutate(Station = ifelse(Station == "Vaughan Mc", "Vaughan Met. Centre", Station)) %>% 
+  mutate(Station = ifelse(Station == "North York Ctr", "North York Centre", Station)) %>% 
+  mutate(Station = ifelse(Station == "St Geoge", "St George", Station)) %>% 
+  mutate(Station = ifelse(Station == "St. George", "St George", Station)) %>% 
+  mutate(Station = ifelse(Station == "Kenndy", "Kennedy", Station)) %>% 
+  mutate(Station = ifelse(Station == "Queens Park", "Queen's Park", Station)) %>% 
+  mutate(Station = ifelse(Station == "Old Mills", "Old Mill", Station)) %>% 
+  mutate(Station = ifelse(Station == "St. Andrew", "St Andrew", Station)) %>% 
+  mutate(Station = ifelse(Station == "Spadina Yu", "Spadina", Station)) %>% 
+  mutate(Station = ifelse(Station == "Sheppard Yonge", "Sheppard", Station)) %>% 
+  mutate(Station = ifelse(Station == "Wislon", "Wilson", Station)) %>% 
+  mutate(Station = ifelse(Station == "Sheppard-Yonge", "Sheppard", Station)) %>% 
+  mutate(Station = ifelse(Station == "Main Street", "Main", Station))
+```
+
+```{r}
+# oops, this is a cleaner way
+  # mutate(Station = recode(Station,
+  #                         "Bloor" = "Bloor-Yonge",
+  #                         "Yonge" = "Bloor-Yonge",
+  #                         "Vaughan Mc" = "Vaughan Met. Centre",
+  #                         "North York Ctr" = "North York Centre",
+  #                         "St Geoge" = "St George",
+  #                         "St. George" = "St George",
+  #                         "Kenndy" = "Kennedy",
+  #                         "Queens Park" = "Queen's Park",
+  #                         "Old Mills" = "Old Mill",
+  #                         "St. Andrew" = "St Andrew",
+  #                         "Spadina Yu" = "Spadina",
+  #                         "Sheppard Yonge" = "Sheppard",
+  #                         "Wislon" = "Wilson",
+  #                         "Sheppard-Yonge" = "Sheppard",
+  #                         "Main Street" = "Main"))
+```
+
+```{r}
+write.csv(subway_subset, "cleaned_delay_stations.csv", row.names = TRUE) # export
+```
+
+In ArcGIS Pro, I imported ESRI Canada Education's [Toronto Subway Stations point data](https://www.arcgis.com/home/item.html?id=05200e06ff524319bde9f16e5955496b). Then, Geodatabase to Shape. Then Add XY Coordinates. Then Export as CSV.
+```{r}
+# grab nice TTC Station coordinates from ESRI ArcGIS
+ttc_coords <- read_csv("../ttc-station-point.csv")
+```
+
+Even though Bloor and Yonge are in the same location (and same point on the ESRI data), let's add them separately since the delays on the different lines are somewhat independent
+```{r}
+ttc_coords <- ttc_coords %>%
+  # Filter the "Bloor-Yonge" row
+  bind_rows(
+    ttc_coords %>%
+      filter(station == "Bloor-Yonge") %>%
+      mutate(station = "Bloor",
+             line = "Bloor-Danforth",
+             line_1 = 2,
+             POINT_Y = 43.6700, # slightly offset so they can be distinguished on the plot
+             POINT_X = -79.3852
+             ),
+    ttc_coords %>%
+      filter(station == "Bloor-Yonge") %>%
+      mutate(station = "Yonge")
+  ) %>%
+  # remove the original "Bloor-Yonge" row
+  filter(station != "Bloor-Yonge")
+
+ttc_coords
+```
+
+Merge the XY coordinates to the delay data
+```{r}
+library(dplyr)
+delay_coords <- left_join(subway_subset, ttc_coords, by = join_by(Station == station))
+delay_coords
+```
+
+See what other stations are mismatched and continue to iterate and rerun
+```{r}
+mismatched <- delay_coords %>% filter(is.na(POINT_X))
+sort(table(mismatched$Station), decreasing = TRUE)
+```
+OK. Great, it seems like it is all the multiple stations / between stations now. So, let's remove them and now we can continue with the join!! 
+```{r}
+matched <- delay_coords %>% filter(!is.na(POINT_X))
+```
+
+Group by station
+```{r}
+by_station <- matched %>%
+  group_by(Station) %>%
+  summarize(
+    avg_delay = mean(`Min Delay`, na.rm = TRUE),
+    num_delays = n(),
+    lon = first(POINT_X), # first is ok, because they are all the same for each station
+    lat = first(POINT_Y)
+      )
+
+by_station
+```
+
+# Mapping for real
+```{r}
+library(scales)
+
+pal <- colorNumeric(
+  palette = "Blues",
+  domain = by_station$num_delays
+)
+
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.DarkMatter) %>%
+  addPolylines(data = my_sf, color = "salmon", weight = 3, opacity = 0.8) %>%
+
+  addCircleMarkers(
+    data = by_station,
+    lng = ~lon, lat = ~lat, 
+    color = ~pal(num_delays),
+    fillOpacity = 0.6,
+    radius = ~rescale(num_delays, to = c(2, 10)),
+    popup = ~paste0("<b>", Station, "</b><br>Number of Delays: ", num_delays, "<br> Average Delay: ", round(avg_delay, 2))
+  ) %>%
+  
+  addLegend(pal = pal, 
+            values = by_station$num_delays,
+            title = "Number of Delays",
+            position = 'bottomright')
+```
+
+A plot combining the number and average delays
+```{r}
+pal <- colorNumeric(
+  palette = "Blues",
+  domain = by_station$avg_delay
+)
+```
+
+```{r}
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.DarkMatter) %>%
+  addPolylines(data = my_sf, color = "salmon", weight = 3, opacity = 0.8) %>%
+
+  addCircleMarkers(
+    data = by_station,
+    lng = ~lon, lat = ~lat, 
+    color = ~pal(avg_delay),
+    fillOpacity = 0.6,
+    radius = ~rescale(num_delays, to = c(2, 10)),
+    popup = ~paste0("<b>", Station, "</b><br>Number of Delays: ", num_delays, "<br> Average Delay: ", avg_delay)
+  ) %>%
+  
+  addLegend(pal = pal, 
+            values = by_station$avg_delay,
+            title = "Average Delay Duration (minutes)",
+            position = 'bottomright') %>% 
+  
+  addLegend(
+    colors = c("lightblue", "lightblue", "lightblue"),  # Same color to simulate circle sizes
+    labels = c("Small (5)", "Medium (15)", "Large (30)"),  # Custom labels for size range
+    title = "Number of Delays", 
+    position = 'bottomleft'
+  )
+```
+
+That's interesting I guess.
+```{r}
+write.csv(by_station, "delays_by_stations.csv", row.names = TRUE) # export
+```
+
+
