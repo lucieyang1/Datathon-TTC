@@ -1,0 +1,376 @@
+---
+title: "Data Preprocessing"
+output: 
+    html_document:
+        toc: TRUE   # Table content at front of the page
+        toc_float: TRUE   # Floating table content on the left
+---
+
+```{r}
+#### Workspace setup ####
+library(tidyverse)
+library(janitor)
+library(dplyr)
+library(readxl)
+library(readr)
+library(hms)
+
+#### Read data ####
+bus_delay_2024 <- read.csv("data/raw/bus-data.csv")
+streetcar_delay_2024 <- read.csv("data/raw/streetcar-data.csv")
+subway_delay_2024 <- read.csv("data/raw/subway-data.csv")
+delay_codes <- read.csv("data/raw/subway-delay-codes.csv")
+
+#### Clean data ####
+###Delay Data ###
+ttc_bus_delay <-
+  bus_delay_2024 |>
+  janitor::clean_names() |>  
+  mutate(date = dmy(date))|>
+  select(date, route, time, day, location, incident, min_delay, min_gap, direction)
+
+ttc_streetcar_delay <-
+  streetcar_delay_2024 |>
+  janitor::clean_names() |>
+  mutate(date = dmy(date))|>
+  select(date, line, time, day, location, incident, min_delay, min_gap, bound)
+
+ttc_subway_delay <-
+  subway_delay_2024 |>
+  janitor::clean_names() |>
+  mutate(date = ymd(date))|>
+  select(date, time, day, station, code, min_delay, min_gap, bound, line)
+
+```
+
+```{r}
+### Filter Dataset for weekday and weekend ###
+
+## Weekday vs Weekend Delay
+ttc_bus_delay <- ttc_bus_delay |>
+  mutate(day_type = ifelse(day %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"), 
+                           "Weekday", "Weekend"))
+ttc_streetcar_delay <- ttc_streetcar_delay |>
+  mutate(day_type = ifelse(day %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"), 
+                           "Weekday", "Weekend"))
+ttc_subway_delay <- ttc_subway_delay |>
+  mutate(day_type = ifelse(day %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"), 
+                           "Weekday", "Weekend"))
+```
+
+```{r}
+### Filter Dataset for rush-Hour Delay
+# Bus
+ttc_bus_delay <- ttc_bus_delay |>
+  mutate(
+    time = as_hms(paste0(time, ":00")),  # Convert 'time' to HH:MM:SS format
+    rush_type = case_when(
+      time >= as_hms("06:00:00") & time <= as_hms("09:00:00") ~ "morning",  # Morning rush (06:00–09:00)
+      time >= as_hms("15:00:00") & time <= as_hms("19:00:00") ~ "evening",  # Evening rush (15:00–19:00)
+      TRUE ~ "none"  # Not in rush hours
+    )
+  )
+
+# Streetcar
+ttc_streetcar_delay <- ttc_streetcar_delay |>
+  mutate(
+    time = as_hms(paste0(time, ":00")),  # Convert 'time' to HH:MM:SS format
+    rush_type = case_when(
+      time >= as_hms("06:00:00") & time <= as_hms("09:00:00") ~ "morning",  # Morning rush (06:00–09:00)
+      time >= as_hms("15:00:00") & time <= as_hms("19:00:00") ~ "evening",  # Evening rush (15:00–19:00)
+      TRUE ~ "none"  # Not in rush hours
+    )
+  )
+
+# Subway
+ttc_subway_delay <- ttc_subway_delay |>
+  mutate(
+    time = as_hms(paste0(time, ":00")),  # Convert 'time' to HH:MM:SS format
+    rush_type = case_when(
+      time >= as_hms("06:00:00") & time <= as_hms("09:00:00") ~ "morning",  # Morning rush (06:00–09:00)
+      time >= as_hms("15:00:00") & time <= as_hms("19:00:00") ~ "evening",  # Evening rush (15:00–19:00)
+      TRUE ~ "none"  # Not in rush hours
+    )
+  )
+```
+
+```{r}
+### Filter Dataset for seasons ###
+#### Bus
+ttc_bus_delay <- ttc_bus_delay |>
+  janitor::clean_names() |>
+  mutate(
+    date = as.Date(date),  # Ensure the 'date' is in Date format
+    season = case_when(
+      month(date) %in% c(3, 4, 5) ~ "Spring",    # March, April, May
+      month(date) %in% c(6, 7, 8) ~ "Summer",    # June, July, August
+      month(date) %in% c(9, 10, 11) ~ "Fall",    # September, October, November
+      month(date) %in% c(12, 1, 2) ~ "Winter",   # December, January, February
+      TRUE ~ "Unknown"  # In case there are any issues
+    )
+  )
+
+#### Streetcar
+ttc_streetcar_delay <- ttc_streetcar_delay |>
+  janitor::clean_names() |>
+  mutate(
+    date = as.Date(date),
+    season = case_when(
+      month(date) %in% c(3, 4, 5) ~ "Spring",
+      month(date) %in% c(6, 7, 8) ~ "Summer",
+      month(date) %in% c(9, 10, 11) ~ "Fall",
+      month(date) %in% c(12, 1, 2) ~ "Winter",
+      TRUE ~ "Unknown"
+    )
+  )
+
+#### Subway
+ttc_subway_delay <- ttc_subway_delay |>
+  janitor::clean_names() |>
+  mutate(
+    date = as.Date(date),
+    season = case_when(
+      month(date) %in% c(3, 4, 5) ~ "Spring",
+      month(date) %in% c(6, 7, 8) ~ "Summer",
+      month(date) %in% c(9, 10, 11) ~ "Fall",
+      month(date) %in% c(12, 1, 2) ~ "Winter",
+      TRUE ~ "Unknown"
+    )
+  )
+
+```
+
+```{r}
+#### Filter Dataset for Holidays
+#https://www.toronto.ca/home/contact-us/statutory-holidays/
+
+# Holidays for 2024
+holidays_2024 <- c(
+  "2024-01-01",  # New Year’s Day
+  "2024-02-19",  # Family Day
+  "2024-03-29",  # Good Friday
+  "2024-04-01",  # Easter Monday
+  "2024-05-20",  # Victoria Day
+  "2024-07-01",  # Canada Day
+  "2024-08-05",  # Simcoe (Civic) Day
+  "2024-09-02",  # Labour Day
+  "2024-10-14",  # Thanksgiving Day
+  "2024-11-11",  # Remembrance Day
+  "2024-12-25",  # Christmas Day
+  "2024-12-26"   # Boxing Day
+)
+
+# Convert holiday dates to Date class
+holidays_2024 <- as.Date(holidays_2024)
+
+# Add 'is_holiday' column to each dataset
+ttc_bus_delay <- ttc_bus_delay |>
+  janitor::clean_names() |>
+  mutate(
+    date = as.Date(date),  # Ensure date is in Date format
+    is_holiday = ifelse(date %in% holidays_2024, 1, 0)  # 1 for holiday, 0 for non-holiday
+  )
+
+ttc_streetcar_delay <- ttc_streetcar_delay |>
+  janitor::clean_names() |>
+  mutate(
+    date = as.Date(date),
+    is_holiday = ifelse(date %in% holidays_2024, 1, 0)
+  )
+
+ttc_subway_delay <- ttc_subway_delay |>
+  janitor::clean_names() |>
+  mutate(
+    date = as.Date(date),
+    is_holiday = ifelse(date %in% holidays_2024, 1, 0)
+  )
+
+```
+
+```{r}
+#### Data Cleaning
+##Missing Values
+ttc_bus_delay <- ttc_bus_delay %>%
+  filter(!is.na(date) & !is.na(time) & !is.na(location))
+
+ttc_streetcar_delay <- ttc_streetcar_delay %>%
+  filter(!is.na(date) & !is.na(time) & !is.na(location))
+
+ttc_subway_delay <- ttc_subway_delay %>%
+  filter(!is.na(date) & !is.na(time) & !is.na(station))
+
+```
+
+```{r}
+### Adding weather
+library(tidyverse)
+
+
+#### weather data
+toronto_weather_all_data <- read_csv("data/raw/en_climate_daily_ON_6158355_2024_P1D.csv")
+
+
+toronto_weather <- toronto_weather_all_data |>
+  select(`Date/Time`, Year, Month, Day, `Max Temp (°C)`, `Min Temp (°C)`, `Total Precip (mm)`, `Snow on Grnd (cm)`) |>
+  mutate("date" = `Date/Time`) |>
+  select(-`Date/Time`)
+
+
+#### merging ttc data with weather data
+ttc_bus_delay <- merge(ttc_bus_delay, toronto_weather, by = "date")
+
+
+ttc_streetcar_delay <- merge(ttc_streetcar_delay, toronto_weather, by = "date")
+
+
+ttc_subway_delay <- merge(ttc_subway_delay, toronto_weather, by = "date")
+```
+
+# Subway Preprocessing
+For simplicity, only keep the delays that are at one station (not in between or multiple stations)
+```{r}
+subway_subset <- ttc_subway_delay %>%
+  filter(str_detect(station, "STATION")) 
+```
+
+```{r}
+dim(subway_subset) # nice! most of them are kept
+```
+
+Clean the text for the stations so I can join. 
+```{r}
+subway_subset$station <- str_remove(subway_subset$station, " STATION$") # remove STATION
+subway_subset$station <- str_remove(subway_subset$station, " BD$") # remove BD
+subway_subset$station <- str_remove(subway_subset$station, " YUS$") # remove YUS
+subway_subset$station <- str_to_title(subway_subset$station) # change to title case
+```
+
+```{r}
+sort(table(subway_subset$station), decreasing = TRUE) # weird names that will get messed up
+```
+There's some stations here that will definitely get lost in the join with the ESRI data -- some stations have been renamed/merged, some formatting/abbreviation differences, and some are misspellings. For example, Spadina YUS Station, Bloor Station, St Geoge (?!)
+
+Manually rename these subway stations to match the ESRI data
+```{r}
+subway_subset <- subway_subset %>% 
+  mutate(station = recode(station,
+                          "Vaughan Mc" = "Vaughan Met. Centre",
+                          "North York Ctr" = "North York Centre",
+                          "St Geoge" = "St George",
+                          "St. George" = "St George",
+                          "Kenndy" = "Kennedy",
+                          "Queens Park" = "Queen's Park",
+                          "Old Mills" = "Old Mill",
+                          "St. Andrew" = "St Andrew",
+                          "Spadina Yu" = "Spadina",
+                          "Sheppard Yonge" = "Sheppard",
+                          "Wislon" = "Wilson",
+                          "Sheppard-Yonge" = "Sheppard",
+                          "Main Street" = "Main"))
+```
+
+In ArcGIS Pro, I imported ESRI Canada Education's [Toronto Subway Stations point data](https://www.arcgis.com/home/item.html?id=05200e06ff524319bde9f16e5955496b). 
+Then do the following geoprocessing to obtain `ttc-station-point.csv`: Geodatabase to Shape, Add XY Coordinates, Export Table.
+```{r}
+# grab nice TTC Station coordinates from ESRI ArcGIS
+ttc_coords <- read_csv("data/raw/ttc-station-point.csv")
+```
+
+Even though Bloor and Yonge are in the same location (and same point on the ESRI data), let's add them separately since the delays on the different lines are somewhat independent
+```{r}
+ttc_coords <- ttc_coords %>%
+  # Filter the "Bloor-Yonge" row
+  bind_rows(
+    ttc_coords %>%
+      filter(station == "Bloor-Yonge") %>%
+      mutate(station = "Bloor",
+             line = "Bloor-Danforth",
+             line_1 = 2,
+             POINT_Y = 43.6700, # slightly offset so they can be distinguished on the plot
+             POINT_X = -79.3852
+             ),
+    ttc_coords %>%
+      filter(station == "Bloor-Yonge") %>%
+      mutate(station = "Yonge")
+  ) %>%
+  # remove the original "Bloor-Yonge" row
+  filter(station != "Bloor-Yonge")
+
+ttc_coords
+```
+
+Merge the XY coordinates to the delay data
+```{r}
+delay_coords <- left_join(subway_subset, ttc_coords, by = "station")
+delay_coords
+```
+
+See what other stations are mismatched and continue to iterate and rerun
+```{r}
+mismatched <- delay_coords %>% filter(is.na(POINT_X))
+sort(table(mismatched$station), decreasing = TRUE)
+```
+OK. Great, it seems like it is all the multiple stations / between stations now. So, let's remove them and now we can continue with the join!! 
+```{r}
+matched <- delay_coords %>% filter(!is.na(POINT_X))
+```
+
+Merge with the delay codes
+```{r}
+delay_codes <- delay_codes %>% janitor::clean_names()
+ttc_subway_delay <- left_join(matched, delay_codes, by = join_by(code == sub_rmenu_code))
+ttc_subway_delay <- ttc_subway_delay %>% select(!number)
+ttc_subway_delay
+```
+
+# Dealing with Missing Values
+```{r}
+ttc_bus_delay$direction[ttc_bus_delay$direction == ""] <- NA
+sum(is.na(ttc_bus_delay$direction))
+ttc_streetcar_delay$bound[ttc_streetcar_delay$bound == ""] <- NA
+sum(is.na(ttc_streetcar_delay$bound))
+ttc_subway_delay$bound[ttc_subway_delay$bound == ""] <- NA
+sum(is.na(ttc_subway_delay$bound))
+
+# Check missing values
+na_counts <- colSums(is.na(ttc_bus_delay))
+na_counts[na_counts > 0]
+
+# Replace NA values in 'Snow on Grnd (cm)' with 0
+ttc_bus_delay$`Snow on Grnd (cm)`[is.na(ttc_bus_delay$`Snow on Grnd (cm)`)] <- 0
+ttc_streetcar_delay$`Snow on Grnd (cm)`[is.na(ttc_streetcar_delay$`Snow on Grnd (cm)`)] <- 0
+ttc_subway_delay$`Snow on Grnd (cm)`[is.na(ttc_subway_delay$`Snow on Grnd (cm)`)] <- 0
+
+ttc_bus_delay <- ttc_bus_delay[order(ttc_bus_delay$date), ]
+ttc_streetcar_delay <- ttc_streetcar_delay[order(ttc_streetcar_delay$date), ]
+ttc_subway_delay <- ttc_subway_delay[order(ttc_subway_delay$date), ]
+
+# Replace NA in temp and total precip with average of nearest dates
+fill_na_with_avg <- function(x) {
+  for (i in which(is.na(x))) {
+    previous_value <- x[max(which(!is.na(x[1:i-1])))]
+    next_value <- x[min(which(!is.na(x[(i+1):length(x)])) + i)]
+    x[i] <- mean(c(previous_value, next_value), na.rm = TRUE)
+  }
+  return(x)
+}
+
+for (col in c("Max Temp (°C)", "Min Temp (°C)", "Total Precip (mm)")) {
+  ttc_bus_delay[[col]] <- fill_na_with_avg(ttc_bus_delay[[col]])
+  ttc_streetcar_delay[[col]] <- fill_na_with_avg(ttc_streetcar_delay[[col]])
+  ttc_subway_delay[[col]] <- fill_na_with_avg(ttc_subway_delay[[col]])
+}
+
+# Clean Subway
+ttc_subway_delay <- ttc_subway_delay |> select(-c("Year", "Month", "Day", "OID_")) |>
+  rename("line_code" = "line.x", "line_name" = "line.y", "line_number" = "line_1")
+ttc_subway_delay$line_number[ttc_subway_delay$line_number == 0] <- 1
+```
+
+
+```{r}
+#### Save data ####
+write_csv(ttc_bus_delay, "data/cleaned/cleaned_bus.csv")
+write_csv(ttc_streetcar_delay, "data/cleaned/cleaned_streetcar.csv")
+write_csv(ttc_subway_delay, "data/cleaned/cleaned_subway.csv")
+```
