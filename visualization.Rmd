@@ -1,0 +1,273 @@
+---
+title: "Visualization"
+output: 
+    html_document:
+        toc: TRUE   # Table content at front of the page
+        toc_float: TRUE   # Floating table content on the left
+---
+
+```{r setup, message=FALSE, warning=FALSE, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, eval = T, include  = T, echo=F) 
+library(knitr)
+library(data.table)
+library(tidyverse)
+library(kableExtra)
+library(dplyr)
+library(splines)
+library(mgcv)
+library(ggstats)
+library(cowplot)
+library(plotly)
+library(hms)
+library(sf)
+library(janitor)
+library(leaflet)
+library(scales)
+```
+
+```{r checking-file, echo=FALSE}
+# Load dataset
+bus <- data.table::fread("data/cleaned/cleaned_bus.csv")
+streetcar <- data.table::fread("data/cleaned/cleaned_streetcar.csv")
+subway <- data.table::fread("data/cleaned/cleaned_subway.csv")
+delay_codes <- data.table::fread("data/raw/subway-delay-codes.csv")
+delay_codes <- delay_codes %>% janitor::clean_names()
+```
+
+## Subway Geographical Hotspots {.tabset}
+
+```{r echo=FALSE}
+# function to calculate mode
+get_mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]  # return the most frequent value
+}
+```
+
+```{r echo=FALSE}
+by_station <- subway %>%
+  group_by(station) %>%
+  summarize(
+    avg_delay = mean(min_delay, na.rm = TRUE),
+    num_delays = n(),
+    lon = first(point_x), # first is ok, because they are all the same for each station
+    lat = first(point_y),
+    most_frequent_code = get_mode(code),
+    freq_count = sum(code == most_frequent_code)
+      )
+
+by_station <- by_station %>% 
+  left_join(delay_codes, by = join_by(most_frequent_code == sub_rmenu_code))
+```
+
+```{r echo=FALSE}
+# Read in the shapefile of the TTC Subway lines (from [Toronto Open Data](https://open.toronto.ca/dataset/ttc-subway-shapefiles/)). 
+my_sf <- read_sf("data/raw/ttc-subway-shapefile-wgs84/TTC_SUBWAY_LINES_WGS84.shp")
+```
+
+
+```{r}
+# Plot the map!!!
+pal <- colorNumeric(
+  palette = c("salmon", "purple", "blue"),
+  # palette = "magma",
+  domain = by_station$num_delays
+)
+
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolylines(data = my_sf, 
+               color = ~case_when(
+                 RID == 1 ~ "darkgoldenrod",      
+                 RID == 2 ~ "darkgreen",    
+                 RID == 4 ~ "purple", 
+                 # TRUE ~ "gray"  # Default color for other lines if not specified
+               ),
+               weight = 5, opacity = 0.5) %>% 
+
+  addCircleMarkers(
+    data = by_station,
+    lng = ~lon, lat = ~lat, 
+    color = ~pal(num_delays),
+    fillOpacity = 0.8,
+    radius = ~rescale(num_delays, to = c(1, 10)),
+    popup = ~paste0("<b>", station, "</b><br>Number of Delays: ", num_delays, 
+                    "<br> Average Delay: ", round(avg_delay, 2), 
+                    " minutes <br> Most Frequent Reason: ", code_description, 
+                    " (", freq_count, ")")
+  ) %>%
+  
+  addLegend(pal = pal, 
+            values = by_station$num_delays,
+            title = "Number of Delays",
+            position = 'bottomright') %>% 
+  addLegend(
+    colors = c("darkgoldenrod", "darkgreen", "purple"),
+    labels = c("1", "2", "4"),
+    title = "Lines",
+    position = 'topright'
+  )
+```
+
+## Peak Times for Delays {.tabset}
+
+### Bus
+```{r echo=FALSE}
+bus$hms_time <- as_hms(bus$time)  # Convert to hms object first
+bus$hour <- hour(bus$hms_time)  # Extract the hour from the time
+bus$transport_type <- "Bus"
+
+peak_time <- ggplot(bus, aes(x = hour)) +
+  geom_bar(fill="orange") +
+  labs(title = "Peak Times for Bus Delays", x = "Time", y = "Frequency of Delays") +
+  theme_minimal()
+
+ggplotly(peak_time)
+```
+
+### Streetcar
+```{r echo=FALSE}
+streetcar$hms_time <- as_hms(streetcar$time)  # Convert to hms object first
+streetcar$hour <- hour(streetcar$hms_time)  # Extract the hour from the time
+streetcar$transport_type <- "Streetcar"
+
+peak_time <- ggplot(streetcar, aes(x = hour)) +
+  geom_bar(fill="lightblue") +
+  labs(title = "Peak Times for Streetcar Delays", x = "Time", y = "Frequency of Delays") +
+  theme_minimal()
+
+ggplotly(peak_time)
+```
+### Subway
+```{r echo=FALSE}
+subway$hms_time <- as_hms(subway$time)  # Convert to hms object first
+subway$hour <- hour(subway$hms_time)  # Extract the hour from the time
+subway$transport_type <- "Subway"
+
+peak_time <- ggplot(subway, aes(x = hour)) +
+  geom_bar(fill="lightgreen") +
+  labs(title = "Peak Times for Subway Delays", x = "Time", y = "Frequency of Delays") +
+  theme_minimal()
+
+ggplotly(peak_time)
+```
+
+### All three
+
+```{r echo=FALSE}
+# Combine the datasets into one
+combined_data <- bind_rows(subway, bus, streetcar)
+
+# Summarize the counts by hour and transport type
+hourly_counts_combined <- combined_data |>
+  group_by(hour, transport_type) |>
+  summarize(frequency = n(), .groups = 'drop')
+
+# Plot the combined data with color to differentiate transport types
+peak_time_combined <- ggplot(hourly_counts_combined, aes(x = hour, y = frequency, fill = transport_type)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(title = "Peak Times for Delays by Transport Type", x = "Time", y = "Frequency of Delays") +
+  theme_minimal()
+
+# Convert to interactive plot using plotly
+ggplotly(peak_time_combined)
+```
+
+
+```{r echo=FALSE, eval=FALSE}
+## Number of Delays by Date {.tabset}
+# Count the number of delays for each date
+delay_counts <- combined_data |>
+  group_by(date) |>
+  summarise(counts = n())
+
+# Plot delays by date
+delay_date <- ggplot(delay_counts, aes(x = date, y = counts)) +
+  geom_point(stat = "identity", fill = "steelblue", color = "black", alpha = 0.7) +
+  labs(
+    title = "Number of Delays by Date",
+    x = "Date",
+    y = "Number of Delays"
+  ) +
+  theme_minimal()
+
+ggplotly(delay_date)
+```
+
+## Top 10 Incidence Types {.tabset}
+
+### Bus
+```{r echo=FALSE}
+# Calculate frequency of each incident
+top_10_incidents <- bus |>
+  count(incident, sort = TRUE) |>
+  top_n(10, n)  # Select the top 10 incidents by frequency
+
+# Plot the histogram for the top 10 incidents
+plot_ly(x = reorder(top_10_incidents$incident, -top_10_incidents$n),
+        y = top_10_incidents$n, 
+        type = "bar") |>
+  layout(
+    title = "Top 10 Incident Frequency for Bus",
+    xaxis = list(title = "Incident"),
+    yaxis = list(title = "Frequency")
+  )
+```
+
+### Streetcar
+```{r echo=FALSE}
+# Calculate frequency of each incident
+top_10_incidents <- streetcar|>
+  count(incident, sort = TRUE) |>
+  top_n(10, n)  # Select the top 10 incidents by frequency
+
+# Plot the histogram for the top 10 incidents
+plot_ly(x = reorder(top_10_incidents$incident, -top_10_incidents$n),
+        y = top_10_incidents$n, 
+        type = "bar") |>
+  layout(
+    title = "Top 10 Incident Frequency for Streetcar",
+    xaxis = list(title = "Incident"),
+    yaxis = list(title = "Frequency")
+  )
+```
+
+### Subway
+```{r echo=FALSE}
+# Calculate frequency of each incident
+top_10_incidents <- subway |>
+  count(code_description, sort = TRUE) |>
+  top_n(10, n)  # Select the top 10 incidents by frequency
+
+# Plot the histogram for the top 10 incidents
+plot_ly(x = reorder(top_10_incidents$code_description, -top_10_incidents$n),
+        y = top_10_incidents$n, 
+        type = "bar") |>
+  layout(
+    title = "Top 10 Incident Frequency for Subway",
+    xaxis = list(title = "Incident"),
+    yaxis = list(title = "Frequency")
+  )
+```
+
+## Delayed Lengths {.tabset}
+```{r echo=FALSE}
+min_delay_counts_combined <- combined_data |>
+  group_by(transport_type) |>
+  mutate(Q1 = quantile(min_delay, 0.25),
+         Q3 = quantile(min_delay, 0.75),
+         IQR = Q3 - Q1) |>
+  ungroup() |>
+  filter(min_delay >= (Q1 - 1.5 * IQR) & min_delay <= (Q3 + 1.5 * IQR))
+
+# Build the violin plot for `min_delay`
+violin_plot <- ggplot(min_delay_counts_combined, aes(x = transport_type, y = min_delay, fill = transport_type)) +
+  geom_violin(trim = FALSE) +
+  labs(title = "Distribution of Minimum Delay by Transport Type (No Outliers)",
+       x = "Transport Type", 
+       y = "Minimum Delay (minutes)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Bus" = "lightblue", "Subway" = "lightgreen", "Streetcar" = "lightcoral"))
+
+ggplotly(violin_plot)
+```

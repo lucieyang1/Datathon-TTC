@@ -1,4 +1,4 @@
-date,time,day,station,code,min_delay,min_gap,bound,line_code,day_type,rush_type,season,is_holiday,Max Temp (°C),Min Temp (°C),Total Precip (mm),Snow on Grnd (cm),line_name,line_number,POINT_X,POINT_Y,code_description
+date,time,day,station,code,min_delay,min_gap,bound,line_code,day_type,rush_type,season,is_holiday,max_temp_c,min_temp_c,total_precip_mm,snow_on_grnd_cm,line_name,line_number,point_x,point_y,code_description
 2024-01-01,02:00:00,Monday,Sheppard,MUI,0,0,N,YU,Weekday,none,Winter,1,-0.7,-3.1,0.1,2,Yonge-University,1,-79.411104746,43.761474916,Injured or ill Customer (On Train) - Transported
 2024-01-01,02:00:00,Monday,Dundas,MUIS,0,0,N,YU,Weekday,none,Winter,1,-0.7,-3.1,0.1,2,Yonge-University,1,-79.381123655,43.656277584,Injured or ill Customer (In Station) - Transported
 2024-01-01,02:08:00,Monday,Dundas,MUPAA,4,10,N,YU,Weekday,none,Winter,1,-0.7,-3.1,0.1,2,Yonge-University,1,-79.381123655,43.656277584,Passenger Assistance Alarm Activated - No Trouble Found

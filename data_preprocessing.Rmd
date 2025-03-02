@@ -361,7 +361,11 @@ for (col in c("Max Temp (°C)", "Min Temp (°C)", "Total Precip (mm)")) {
   ttc_subway_delay[[col]] <- fill_na_with_avg(ttc_subway_delay[[col]])
 }
 
-# Clean Subway
+# Clean
+ttc_bus_delay <- ttc_bus_delay |> select(-c("Year", "Month", "Day"))
+
+ttc_streetcar_delay <- ttc_streetcar_delay |> select(-c("Year", "Month", "Day"))
+
 ttc_subway_delay <- ttc_subway_delay |> select(-c("Year", "Month", "Day", "OID_")) |>
   rename("line_code" = "line.x", "line_name" = "line.y", "line_number" = "line_1")
 ttc_subway_delay$line_number[ttc_subway_delay$line_number == 0] <- 1

@@ -1,0 +1,180 @@
+Mapping TTC Delays: Data Wrangling & Initial EDA
+================
+Lucie Yang
+March 01, 2025
+
+``` r
+# Reading dataset
+final <- read.csv("data/cleaned/cleaned_subway.csv")
+delay_codes <- data.table::fread("data/raw/subway-delay-codes.csv")
+delay_codes <- delay_codes %>% janitor::clean_names()
+```
+
+Group by station
+
+``` r
+# function to calculate mode
+get_mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]  # return the most frequent value
+}
+```
+
+``` r
+by_station <- final %>%
+  group_by(station) %>%
+  summarize(
+    avg_delay = mean(min_delay, na.rm = TRUE),
+    num_delays = n(),
+    lon = first(POINT_X), # first is ok, because they are all the same for each station
+    lat = first(POINT_Y),
+    most_frequent_code = get_mode(code),
+    freq_count = sum(code == most_frequent_code)
+      )
+
+by_station <- by_station %>% 
+  left_join(delay_codes, by = join_by(most_frequent_code == sub_rmenu_code))
+
+by_station
+```
+
+# Mapping!!
+
+Read in the shapefile of the TTC Subway lines (from [Toronto Open
+Data](https://open.toronto.ca/dataset/ttc-subway-shapefiles/)).
+
+``` r
+my_sf <- read_sf("data/raw/ttc-subway-shapefile-wgs84/TTC_SUBWAY_LINES_WGS84.shp")
+```
+
+Plot the map!!!
+
+``` r
+pal <- colorNumeric(
+  palette = c("salmon", "purple", "blue"),
+  # palette = "magma",
+  domain = by_station$num_delays
+)
+
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolylines(data = my_sf, 
+               color = ~case_when(
+                 RID == 1 ~ "darkgoldenrod",      
+                 RID == 2 ~ "darkgreen",    
+                 RID == 4 ~ "purple", 
+                 # TRUE ~ "gray"  # Default color for other lines if not specified
+               ),
+               weight = 5, opacity = 0.5) %>% 
+
+  addCircleMarkers(
+    data = by_station,
+    lng = ~lon, lat = ~lat, 
+    color = ~pal(num_delays),
+    fillOpacity = 0.8,
+    radius = ~rescale(num_delays, to = c(1, 10)),
+    popup = ~paste0("<b>", station, "</b><br>Number of Delays: ", num_delays, 
+                    "<br> Average Delay: ", round(avg_delay, 2), 
+                    " minutes <br> Most Frequent Reason: ", code_description, 
+                    " (", freq_count, ")")
+  ) %>%
+  
+  addLegend(pal = pal, 
+            values = by_station$num_delays,
+            title = "Number of Delays",
+            position = 'bottomright') %>% 
+  addLegend(
+    colors = c("darkgoldenrod", "darkgreen", "purple"),
+    labels = c("1", "2", "4"),
+    title = "Lines",
+    position = 'topright'
+  )
+```
+
+Another plot, combining the number and average delays, but this is
+harder to interpret.
+
+``` r
+pal <- colorNumeric(
+  palette = "Blues",
+  domain = by_station$avg_delay
+)
+
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.DarkMatter) %>%
+  addPolylines(data = my_sf, color = "salmon", weight = 3, opacity = 0.8) %>%
+
+  addCircleMarkers(
+    data = by_station,
+    lng = ~lon, lat = ~lat, 
+    color = ~pal(avg_delay),
+    fillOpacity = 0.6,
+    radius = ~rescale(num_delays, to = c(2, 10)),
+    popup = ~paste0("<b>", station, "</b><br>Number of Delays: ", num_delays, "<br> Average Delay: ", avg_delay)
+  ) %>%
+  
+  addLegend(pal = pal, 
+            values = by_station$avg_delay,
+            title = "Average Delay Duration (minutes)",
+            position = 'bottomright') %>% 
+  
+  addLegend(
+    colors = c("lightblue", "lightblue", "lightblue"),  # Same color to simulate circle sizes
+    labels = c("Small (5)", "Medium (15)", "Large (30)"),  # Custom labels for size range
+    title = "Number of Delays", 
+    position = 'bottomleft'
+  )
+```
+
+That’s interesting I guess. Onto the next steps!!
+
+``` r
+write.csv(by_station, "delays_by_stations.csv", row.names = TRUE) # export
+```
+
+# Appendix:
+
+## Testing different ways to make maps (for fun)
+
+``` r
+my_sf <- read_sf("TTC_SUBWAY_LINES_WGS84.shp")
+```
+
+``` r
+st_geometry(my_sf)
+```
+
+``` r
+my_sf <- st_transform(my_sf, crs = 4326)
+```
+
+``` r
+my_sf <- st_make_valid(my_sf)
+```
+
+``` r
+plot(st_geometry(my_sf))
+```
+
+``` r
+par(mar = c(0, 0, 0, 0))
+plot(st_geometry(my_sf), col = "#f2f2f2", bg = "skyblue", lwd = 0.25, border = 0)
+```
+
+``` r
+library(ggplot2)
+ggplot(my_sf) +
+  geom_sf(fill = "#69b3a2", color = "red") +
+  theme_void()
+```
+
+``` r
+my_sf <- st_transform(my_sf, 4326)
+```
+
+``` r
+library(leaflet)
+leaflet(my_sf) %>%
+  addProviderTiles(providers$CartoDB.DarkMatter) %>%  # Light-themed basemap
+  addPolylines(color = "lightblue", weight = 3, opacity = 0.8)
+```
