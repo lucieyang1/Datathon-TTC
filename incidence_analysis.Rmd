@@ -1,0 +1,226 @@
+---
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r}
+ttc_bus_delay <- read.csv("data/cleaned/cleaned_bus.csv")
+ttc_streetcar_delay <- read.csv("data/cleaned/cleaned_streetcar.csv")
+ttc_subway_delay <- read.csv("data/cleaned/cleaned_subway.csv")
+
+```
+
+## Bus - Mechanical
+```{r}
+set.seed(3096)  # For reproducibility
+library(caret)
+ttc_bus_delay$mechanical_issue <- ifelse(ttc_bus_delay$incident == "Mechanical", 1, 0)
+
+# Create a train-test split (e.g., 80% train, 20% test)
+train_index <- createDataPartition(ttc_bus_delay$mechanical_issue, p = 0.8, list = FALSE)
+train_data <- ttc_bus_delay[train_index, ]
+test_data <- ttc_bus_delay[-train_index, ]
+
+```
+
+
+```{r}
+
+logit_model <- glm(mechanical_issue ~ rush_type + season + day_type + is_holiday + 
+                   max_temp_c + min_temp_c + total_precip_mm + snow_on_grnd_cm,
+                   data = train_data, 
+                   family = binomial)
+
+summary(logit_model)
+
+
+```
+```{r}
+final_model <- glm(mechanical_issue ~ rush_type + season + day_type +
+                     total_precip_mm,
+                   data = train_data, 
+                   family = binomial)
+
+summary(final_model)
+```
+```{r}
+test_data$predicted_prob <- predict(final_model, newdata = test_data, type = "response")
+test_data$predicted_class <- ifelse(test_data$predicted_prob > 0.5, 1, 0)
+
+accuracy <- mean(test_data$predicted_class == test_data$mechanical_issue)
+print(paste("Test Accuracy:", round(accuracy, 4)))
+```
+
+- Morning Rush (+0.429528, p < 0.001). Mechanical issues are more likely during the morning rush. The odds increase by exp(0.429528) = 1.54 times compared to the evening rush.
+- No Rush (-0.093551, p < 0.001). The odds of a mechanical issue decrease slightly when there’s no rush.
+
+- Winter (+0.193333, p < 0.001) Mechanical issues are more likely in winter. The odds increase by exp(0.193333) = 1.21 times compared to fall.
+- Spring & Summer (not significant, p > 0.05) No strong evidence that these seasons affect mechanical issues compared to fall.
+
+- Weekend (-0.077120, p = 0.00145) Fewer mechanical issues occur on weekends. The odds decrease by exp(-0.077120) = 0.93 times compared to weekdays.
+
+- Total Precipitation (+0.008727 per mm, p < 0.001) Each additional 1 mm of precipitation increases the log-odds of a mechanical issue. The effect is small, but significant: exp(0.008727)  1.009 times per mm.
+
+So: Morning rush hours and winter significantly increase mechanical issues. More precipitation increases the likelihood of mechanical issues.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Streetcars - Operations
+
+```{r}
+set.seed(3095)  # For reproducibility
+library(caret)
+ttc_streetcar_delay$operational_issue <- ifelse(ttc_streetcar_delay$incident == "Operations", 1, 0)
+# Create a train-test split (e.g., 80% train, 20% test)
+train_index <- createDataPartition(ttc_streetcar_delay$operational_issue, p = 0.8, list = FALSE)
+train_data_streetcar <- ttc_streetcar_delay[train_index, ]
+test_data_streetcar <- ttc_streetcar_delay[-train_index, ]
+
+```
+
+
+```{r}
+
+logit_model_streetcar <- glm(operational_issue ~ rush_type + season + day_type + is_holiday + 
+                   max_temp_c + min_temp_c + total_precip_mm + snow_on_grnd_cm,
+                   data = train_data_streetcar, 
+                   family = binomial)
+
+summary(logit_model_streetcar)
+
+
+```
+```{r}
+final_model_streetcar <- glm(operational_issue ~ rush_type + season + day_type +
+                            is_holiday + snow_on_grnd_cm,
+                          data = train_data_streetcar,
+                          family = binomial)
+
+summary(final_model_streetcar)
+```
+```{r}
+test_data_streetcar$predicted_prob <- predict(final_model_streetcar, newdata = test_data_streetcar, type = "response")
+test_data_streetcar$predicted_class <- ifelse(test_data_streetcar$predicted_prob > 0.5, 1, 0)
+
+accuracy <- mean(test_data_streetcar$predicted_class == test_data_streetcar$operational_issue)
+print(paste("Test Accuracy:", round(accuracy, 4)))
+```
+
+- Morning Rush (-0.25921, p = 0.00812) The odds of an operational issue decrease during the morning rush compared to the evening rush. The odds are exp(-0.25921) = 0.77 times that of the evening rush.
+
+- No Rush (-0.16950, p = 0.0074) The odds of an operational issue also decrease slightly when there’s no rush. The odds are exp(-0.16950) = 0.84 times that of the evening rush.
+
+- Spring (+0.16087, p = 0.0421)The odds of operational issues slightly increase in the spring.
+- Summer (+0.65568, p < 2e-16) Strong increase in operational issues in summer. The odds increase by exp(0.65568) = 1.93 times compared to fall.
+
+- Winter (+0.26516, p = 0.00268) The odds increase in winter as well, but less than summer. The odds are exp(0.26516) = 1.30 times those in fall.
+
+- Holiday (-0.72210, p = 0.00053) Fewer operational issues occur on holidays. The odds decrease by exp(-0.72210) = 0.49 times (i.e., about half the usual rate).
+
+- Snow on Ground (+0.06504, p = 0.00968)
+More snow on the ground increases the odds of operational issues.For each 1 cm of snow, the odds increase by exp(0.06504) = 1.07 times.
+
+So: Fewer operational issues occur during the morning rush and no rush periods. Summer has the highest increase in operational issues, followed by winter and spring. Holidays see fewer operational issues. Snow increases operational issues, but only slightly. Weekends might have slightly more issues, but the effect is weak.
+
+
+
+## Subway - Disorderly Patrons(SUDP)
+```{r}
+set.seed(3097)  # For reproducibility
+library(caret)
+ttc_subway_delay$disorderly_patron_issue <- ifelse(ttc_subway_delay$code == "SUDP", 1, 0)
+
+# Create a train-test split (e.g., 80% train, 20% test)
+train_index <- createDataPartition(ttc_subway_delay$disorderly_patron_issue, p = 0.8, list = FALSE)
+train_data_subway <- ttc_subway_delay[train_index, ]
+test_data_subway <- ttc_subway_delay[-train_index, ]
+
+```
+
+
+```{r}
+
+logit_model_subway <- glm(disorderly_patron_issue ~ rush_type + season + day_type + is_holiday + 
+                   max_temp_c + min_temp_c + total_precip_mm + snow_on_grnd_cm,
+                   data = train_data_subway, 
+                   family = binomial)
+
+summary(logit_model_subway)
+
+
+```
+```{r}
+final_model_subway <- glm(disorderly_patron_issue ~ rush_type + season + snow_on_grnd_cm,
+                          data = train_data_subway,
+                          family = binomial)
+
+summary(final_model_subway)
+```
+```{r}
+test_data_subway$predicted_prob <- predict(final_model_subway, newdata = test_data_subway, type = "response")
+test_data_subway$predicted_class <- ifelse(test_data_subway$predicted_prob > 0.5, 1, 0)
+
+accuracy <- mean(test_data_subway$predicted_class == test_data_subway$disorderly_patron_issue)
+print(paste("Test Accuracy:", round(accuracy, 4)))
+```
+
+-   Morning Rush (-0.16894, p = 0.03249) The odds of disorderly patron incidents decrease during the morning rush compared to the evening rush. The odds ratio is exp(-0.16894) = 0.84, meaning morning rush hours see about 16% fewer disorderly incidents than the evening rush.
+
+-   Spring (+0.35305, p < 0.001) More disorderly incidents occur in spring compared to fall. The odds increase by exp(0.35305) = 1.42 times (42% higher than in fall).
+-   Summer (+0.19631, p = 0.00215) The odds increase by exp(0.19631) = 1.22 times (22% higher than in fall).
+-   Winter (+0.42573, p < 0.001) Winter has the highest increase in disorderly patron issues. The odds increase by exp(0.42573) = 1.53 times (53% higher than in fall).
+
+- Snow on Ground (+0.06296, p = 0.00291) More snow on the ground increases the odds of disorderly patron issues. For each 1 cm of snow, the odds increase by exp(0.06296) = 1.06 times (6% increase).
+
+So: Disorderly patron incidents are more common in spring and winter (strongest effect in winter). Morning rush hours see fewer disorderly patron issues than evening rush hours.
+More snow on the ground slightly increases disorderly patron incidents. No significant difference between "no rush" and evening rush.
+
+## TTC Transit Delays
+### Bus:
+Delays are primarily due to mechanical failures.
+Weather conditions (precipitation, snow) have minimal impact on mechanical issues.
+Morning rush hours see more mechanical failures, while weekends have fewer.
+
+### Streetcars:
+Operational issues are the leading cause of delays for streetcars.
+Morning rush hours and regular weekdays see fewer operational problems than off-peak periods.
+Seasons impact operations, with summer having the highest rate of operational issues.
+Holidays reduce operational incidents, suggesting different scheduling or reduced demand.
+
+### Subway: Disorderly Patrons:
+The biggest source of delays in the subway system is disorderly passengers.
+Morning rush hours experience fewer incidents, likely due to structured commuter patterns.
+Winter and spring have the highest rates of disorderly patron delays, possibly due to holiday crowds or weather-related stressors.
+Snow on the ground slightly increases disorderly patron incidents.
+
+
+## SOlutions and Bisness insights:
+For buses, proactive maintenance and real-time monitoring of vehicle conditions.
+--- Mechanical failures are a primary cause of delays, and weather doesn't seem to significantly affect them, meaning the issues are often preventable.
+--- extra monitoring
+
+For streetcars, operational efficiency improvements during peak periods.
+--- Operational issues are the leading cause of delays. These often stem from scheduling inefficiencies and poor resource allocation.
+--- Operational delays often occur during peak periods when resources are stretched thin.
+--- Operational delays often arise from infrastructure wear and tear. regular inspections of tracks and switches to ensure that the physical infrastructure does not cause operational delays.
+
+For subways, better crowd management and safety enforcement, especially in high-risk seasons.
+--- Disorderly patrons, particularly during peak hours and specific seasons, contribute significantly to subway delays. Increase the presence of staff during high-risk periods (morning/evening rush) to manage and de-escalate situations.
+Install video surveillance at key stations to identify and address disruptive behavior quickly.
+
+
+
+
