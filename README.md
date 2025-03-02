@@ -38,3 +38,7 @@ Datathon-TTC/
 ## Other Resources
 - Rush Hour from [TTC](https://www.ttc.ca/routes-and-schedules/1/1/13816)
 - Holidays from [City of Toronto](https://www.toronto.ca/home/contact-us/statutory-holidays/)
+
+
+## AI Tool Usage
+We used ChatGPT for code assistance and debugging.
