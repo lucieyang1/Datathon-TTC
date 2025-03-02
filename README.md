@@ -6,10 +6,13 @@ This project investigates delays in the 2024 Toronto Transit Commission (TTC) sy
 ## Repository Structure
 ```
 Datathon-TTC/
-│-- cleaned_data/         # Intermediate processed datasets
-│-- ttc_data/             # Original data (provided by organizers)
-│-- data_cleaning.R       # Script for initial cleaning and preprocessing data
-│-- mapping.Rmd           # Script for more cleaning, and mapping and visualization
+├── data/
+│   ├── raw/                     # original data (provided by organizers and external data)
+│   └── cleaned/                 # cleaned data (output of data_preprocessing.Rmd)
+│-- data_preprocessing.Rmd       # File for cleaning and preprocessing data
+│-- visualization.Rmd            # File for more cleaning, and mapping and visualization
+|-- visualization.html           # Knitted version of visualizations, interactive!!
+|-- incidence_analysis.Rmd       # File for analyzing top incidence types
 ```
 
 ## External Data
