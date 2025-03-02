@@ -1,6 +1,18 @@
 # Datathon-TTC
 
-## External Data:
+## Overview
+This project investigates delays in the 2024 Toronto Transit Commission (TTC) system, including buses, streetcars, and subway lines. The goal is to predict future delays and analyze contributing factors through data cleaning, wrangling, visualization, and modeling.
+
+## Repository Structure
+```
+Datathon-TTC/
+│-- cleaned_data/         # Intermediate processed datasets
+│-- ttc_data/             # Original data (provided by organizers)
+│-- data_cleaning.R       # Script for initial cleaning and preprocessing data
+│-- mapping.Rmd           # Script for more cleaning, and mapping and visualization
+```
+
+## External Data
 
 ### 1. TTC Stations Coordinate Data from Esri Canada Education
 - **Source**: [Esri Canada Education - TTC Stations Coordinates](https://www.arcgis.com/home/item.html?id=05200e06ff524319bde9f16e5955496b)
