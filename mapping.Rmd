@@ -22,6 +22,8 @@ library(scales)
 ```{r}
 # Reading dataset
 final <- read.csv("data/cleaned/cleaned_subway.csv")
+delay_codes <- data.table::fread("data/raw/subway-delay-codes.csv")
+delay_codes <- delay_codes %>% janitor::clean_names()
 ```
 
 Group by station
@@ -55,7 +57,7 @@ by_station
 
 Read in the shapefile of the TTC Subway lines (from [Toronto Open Data](https://open.toronto.ca/dataset/ttc-subway-shapefiles/)). 
 ```{r}
-my_sf <- read_sf("TTC_SUBWAY_LINES_WGS84.shp")
+my_sf <- read_sf("data/raw/ttc-subway-shapefile-wgs84/TTC_SUBWAY_LINES_WGS84.shp")
 ```
 
 Plot the map!!!
