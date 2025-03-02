@@ -37,6 +37,9 @@ delay_codes <- delay_codes %>% janitor::clean_names()
 ```
 
 ## Subway Geographical Hotspots {.tabset}
+With the goal of analyzing contributing factors to delays on TTC buses, streetcars and the subway, we decided to conduct exploratory data analysis on the geographic hotspots of subway delays, the top incidence types, the peak times for delays, and the distribution of delay durations for each transport type.
+
+First, we plot the number of delays reported at each subway station in Toronto in 2024. As seen below, it seems like more delays occur at the endpoints of each line, namely at the Kennedy, Kipling, and Finch stations. Moreover, the figure suggests that the highest number of delays occurs at Bloor station, with 1008, although the average delay is only 1.97 minutes. Interacting with the full map, it suggests that disorderly patrons make up a substantial amount of the reasons for delays.
 
 ```{r echo=FALSE}
 # function to calculate mode
@@ -111,6 +114,7 @@ leaflet() %>%
   )
 ```
 ## Top 10 Incidence Types {.tabset}
+Hence, we decide to investigate the most frequent reasons for delays for each transport type, as in the below figures. This is vital to bring insight into how future delays might be mitigated and specific solutions to target. This plot suggests that mechanical reasons are the top reason for delays in buses, whereas operations and security are the top reasons for streetcars. Interestingly, the top reasons for delays in the subway are passenger-related, including disorderly patrons, illness and injury, matching what was previously suggested.
 
 ### Bus
 ```{r echo=FALSE}
@@ -169,6 +173,7 @@ plot_ly(x = reorder(top_10_incidents$code_description, -top_10_incidents$n),
 
 
 ## Peak Times for Delays {.tabset}
+Then, we investigate the peak times for delays in each of these transport types. As shown below, the frequency of delays for the subway and streetcars seems relatively consistent over time, except from around 2am to 5am, when it is usually closed and with slight peaks at 8am and 4pm, at peak hour. This led us to include a variable to indicate rush hour for our model. Moreover, the bus has a significant peak at 5pm, supporting this decision.
 
 ### Bus
 ```{r echo=FALSE}
@@ -253,7 +258,12 @@ delay_date <- ggplot(delay_counts, aes(x = date, y = counts)) +
 ggplotly(delay_date)
 ```
 
-## Delayed Lengths {.tabset}
+## Delay Durations by Transport Type {.tabset}
+
+After removing outliers from the data, we investigate how the distribution of the delay durations vary between the different transport types in the following figures. The violin plots suggest that the delay durations for buses has a large spread, as compared to streetcars and the subway. The subway seems to have a significant number of values near 0, while the streetcar has peaks at around 0 and 10 minutes. The animated figure shows how this varies over months: it seems that the number of delays increases in the summer months, although the general pattern remains consistent over the months. This motivated us to include season as a variable of interest in our models.
+
+### By Transport Type
+
 ```{r echo=FALSE}
 min_delay_counts_combined <- combined_data |>
   group_by(transport_type) |>
@@ -266,16 +276,17 @@ min_delay_counts_combined <- combined_data |>
 # Build the violin plot for `min_delay`
 violin_plot <- ggplot(min_delay_counts_combined, aes(x = transport_type, y = min_delay, fill = transport_type)) +
   geom_violin(trim = FALSE) +
-  labs(title = "Distribution of Minimum Delay by Transport Type (No Outliers)",
+  labs(title = "Distribution of Delay Duration by Transport Type",
+       subtitle = "TTC delays less than 40 minutes in 2024",
        x = "Transport Type", 
-       y = "Minimum Delay (minutes)") +
+       y = "Delay (minutes)") +
   theme_minimal() +
   scale_fill_manual(values = c("Bus" = "lightblue", "Subway" = "lightgreen", "Streetcar" = "lightcoral"))
 
 ggplotly(violin_plot)
 ```
 
-## Delay Durations by Transit Type {.tabset}
+### By Transport Type and Month
 ```{r echo=FALSE}
 animated_plot <- combined_data %>% 
   filter(min_delay < 40) %>% 
@@ -284,9 +295,9 @@ animated_plot <- combined_data %>%
   facet_wrap(~transport_type) +
   transition_time(month(date)) +  # Animate over time
   ease_aes('linear') +
-  labs(title = "Distribution of Delays by Transit Type in {month.name[frame_time]}",
+  labs(title = "Distribution of Delays by Transport Type in {month.name[frame_time]}",
      subtitle = "TTC delays less than 40 minutes in 2024",  # Add the date dynamically
-     x = "Delay (in minutes)", 
+     x = "Delay (minutes)", 
      y = "Count") +
   theme_bw() +
   theme(plot.title = element_text(face = "bold")) +
