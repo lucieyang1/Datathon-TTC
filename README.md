@@ -9,10 +9,10 @@ Datathon-TTC/
 ├── data/
 │   ├── raw/                     # original data (provided by organizers and external data)
 │   └── cleaned/                 # cleaned data (output of data_preprocessing.Rmd)
-│-- data_preprocessing.Rmd       # File for cleaning and preprocessing data
-│-- visualization.Rmd            # File for more cleaning, and mapping and visualization
-|-- visualization.html           # Knitted version of visualizations, interactive!!
-|-- incidence_analysis.Rmd       # File for analyzing top incidence types
+├── data_preprocessing.Rmd       # File for cleaning and preprocessing data
+├── visualization.Rmd            # File for more cleaning, and mapping and visualization
+├── visualization.html           # Knitted version of visualizations, interactive!!
+├── incidence_analysis.Rmd       # File for analyzing top incidence types
 ```
 
 ## External Data
