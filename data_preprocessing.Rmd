@@ -366,6 +366,20 @@ ttc_subway_delay <- ttc_subway_delay |> select(-c("Year", "Month", "Day", "OID_"
   rename("line_code" = "line.x", "line_name" = "line.y", "line_number" = "line_1")
 ttc_subway_delay$line_number[ttc_subway_delay$line_number == 0] <- 1
 ```
+```{r}
+ttc_bus_delay <-
+  ttc_bus_delay |> 
+  janitor::clean_names()
+
+ttc_streetcar_delay <-
+  ttc_streetcar_delay |> 
+  
+  janitor::clean_names()
+
+ttc_subway_delay <-
+  ttc_subway_delay |> 
+  janitor::clean_names()
+```
 
 
 ```{r}
