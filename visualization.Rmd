@@ -305,3 +305,69 @@ animated_plot <- combined_data %>%
 
 animate(animated_plot, nframes = 100, renderer = gifski_renderer())
 ```
+
+
+## Other visualizations
+
+```{r}
+by_date <- subway %>%
+  group_by(date) %>%
+  summarize(
+    avg_delay = mean(min_delay, na.rm = TRUE),
+    num_delays = n(),
+    season = first(season)
+      )
+```
+
+```{r}
+per_season <- by_date %>% 
+  ggplot(aes(x = season, y = num_delays, fill = season)) +
+  geom_boxplot() +
+  theme_light() +
+  labs(title = "Number of Delays per Day by Season",
+     subtitle = "for the TTC Subway in 2024",
+     x = "Season",
+     y = "Number of Delays per Day") +
+  theme_light() +
+  theme(plot.title = element_text(face = "bold"))
+
+ggplotly(per_season)
+```
+
+
+```{r}
+season_incidence <- subway %>%
+  group_by(season, code) %>%
+  count() %>%
+  group_by(season) %>%
+  top_n(10, n) %>%
+  ggplot(aes(x = reorder(code, n), y = n, fill = season)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~season, scales = "free_y") +
+  theme_light() +
+  labs(title = "Number of Delays by Incidence",
+     subtitle = "by Season, for the TTC Subway in 2024",
+     x = "Incidence Code",
+     y = "Number of Delays") +
+  coord_flip() +
+  theme_light() +
+  theme(plot.title = element_text(face = "bold"))
+
+ggplotly(season_incidence)
+```
+
+```{r}
+precipitationd <- combined_data |>
+  ggplot() +
+  geom_point(aes(x = total_precip_mm, y = min_delay, color = transport_type), alpha = 0.2) +
+  facet_wrap(~transport_type) +
+  labs(title = "Relationship between precipitation and delay",
+     subtitle = "by transport type", 
+     x = "Total Precipitation (mm)", 
+     y = "Delay (minutes)") +
+  theme_bw() +
+  theme(plot.title = element_text(face = "bold"))
+
+ggplotly(precipitationd)
+```
+
