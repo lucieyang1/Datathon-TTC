@@ -7,7 +7,7 @@ output:
   github_document
 ---
 
-```{r setup, echo=FALSE}
+```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
 knitr::opts_chunk$set(eval = F, include  = T)
 
 library(tidyverse)
@@ -15,6 +15,7 @@ library(sf)
 library(stringr)
 library(dplyr)
 library(janitor)
+library(leaflet)
 library(scales)
 ```
 
@@ -133,13 +134,13 @@ Merge with the delay codes
 ```{r}
 delay_codes <- read_csv("subway-delay-codes.csv")
 delay_codes <- delay_codes %>% janitor::clean_names()
-# final <- left_join(matched, delay_codes, by = join_by(code == sub_rmenu_code))
-# final <- final %>% select(!number)
-# final
+final <- left_join(matched, delay_codes, by = join_by(code == sub_rmenu_code))
+final <- final %>% select(!number)
+final
 ```
 
 ```{r}
-# write.csv(final, "cleaned_delay_stations.csv", row.names = TRUE) # export
+write.csv(final, "cleaned_delay_stations.csv", row.names = TRUE) # export
 ```
 
 Group by station
