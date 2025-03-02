@@ -3,6 +3,12 @@ output:
   pdf_document:
     latex_engine: xelatex
 ---
+```{r}
+library(broom)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+```
 
 ```{r}
 ttc_bus_delay <- read.csv("data/cleaned/cleaned_bus.csv")
@@ -189,6 +195,47 @@ So: Disorderly patron incidents are more common in spring and winter (strongest 
 More snow on the ground slightly increases disorderly patron incidents. No significant difference between "no rush" and evening rush.
 
 ## TTC Transit Delays
+```{r}
+library(dplyr)
+library(knitr)
+library(kableExtra)
+library(broom)
+
+# Prepare model summaries
+model_mechanical <- tidy(final_model) %>%
+  rename(Term = term, Estimate = estimate, `Std. Error` = std.error, 
+         Statistic = statistic, `P-Value` = p.value) %>%
+  mutate(model = "Model Summary Table for Bus - Mechanical Issue")
+
+model_operational <- tidy(final_model_streetcar) %>%
+  rename(Term = term, Estimate = estimate, `Std. Error` = std.error, 
+         Statistic = statistic, `P-Value` = p.value) %>%
+  mutate(model = "Model Summary Table for Streetcar - Operational Issue")
+
+model_disorderly <- tidy(final_model_subway) %>%
+  rename(Term = term, Estimate = estimate, `Std. Error` = std.error, 
+         Statistic = statistic, `P-Value` = p.value) %>%
+  mutate(model = "Model Summary Table for Subways - Disorderly Patron Issue")
+
+# Function to create tables
+create_model_table <- function(model_data) {
+  model_name <- unique(model_data$model)
+  kable(model_data %>% select(Term, Estimate, `Std. Error`, Statistic, `P-Value`),
+        digits = 3, format = "latex", caption = model_name, booktabs = TRUE) %>%
+    kable_styling(full_width = FALSE, latex_options = c("hold_position", "striped")) %>%
+    add_header_above(c(" " = 1, "Coefficient Estimates" = 4)) %>%
+    footnote(general = "Standard errors and p-values reported. Estimated represents log-odds")
+}
+
+# Print tables with spacing
+create_model_table(model_mechanical)
+cat("\n\n")
+create_model_table(model_operational)
+cat("\n\n")
+create_model_table(model_disorderly)
+
+```
+
 ### Bus:
 Delays are primarily due to mechanical failures.
 Weather conditions (precipitation, snow) have minimal impact on mechanical issues.
